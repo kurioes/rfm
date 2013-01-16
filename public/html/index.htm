@@ -1,0 +1,30 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<title>test</title>
+		<script src="/public/js/jquery-1.8.3.js"></script>
+		<script src="/public/js/mustache.js"></script>
+		<script>
+			$(document).ready(function() {
+				var template = "<html><head><title</title></head><body>"+
+					"<p>Dir listing for {{dir}}</p>"+
+					"<ul>{{#entries}}<li>{{name}}</li>{{/entries}}</ul>"
+					"</body></html>";
+				var data = {stache: "SPARTA!"};
+				document.body.innerHTML = Mustache.to_html(template, data);
+
+				$.ajax("/dir?path=/", {
+					async:		true,
+					cache:		false,
+					dataType:	"json",
+					success:	function(data, status, xhr) {
+									document.body.innerHTML = 
+										Mustache.to_html(template, data);
+								}
+					});					
+			});
+		</script>
+	</head>
+	<body>
+	</body>
+</html>
