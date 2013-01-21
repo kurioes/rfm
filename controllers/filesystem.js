@@ -1,11 +1,25 @@
-var express = require("express");
-var app = express();
+
 var path = require("path");
 var fs = require("fs");
 var async = require("async");
 
-function get_file_meta(filename, callback) {
-	fs.lstat(filename, function(err, stat) {
+exports = module.exports = createFilesystem;
+
+function createFilesystem(rootdir) {
+	return new filesystem(rootdir);
+}
+
+function filesystem(rootdir) {
+	this.rootdir = rootdir;
+}
+
+filesystem.prototype._meta_entry_types = Object.freeze({
+	"dir":  0,
+	"file": 1
+});
+
+filesystem.prototype._get_meta_data = function(dir, filename, callback) {
+	fs.lstat(path.join(dir, filename), function(err, stat) {
 		if (err === null) {
 			var ret = null;
 			if (stat.isFile() || stat.isDirectory()) {
@@ -26,86 +40,76 @@ function get_file_meta(filename, callback) {
 	});
 }
 
-function durr_butter() {
-	var dir = __dirname;
-	async.waterfall([
-		function(callback){ fs.readdir(dir, callback); },
-		function(files, callback){ async.map(files, get_file_meta, callback); }
-	],
-		function(err, result){
-			if (err !== null) console.log("ERROR: ", err);
-			console.log(result);
-		}
+filesystem.prototype._get_files_metadata = function(dir, filenames, callback) {
+	async.map(
+		filenames,
+		function(filename, map_callback) {
+			this._get_meta_data(dir, file, map_callback);
+		},
+		callback
 	);
 }
 
-function dirlisting(_dir, callback)
-{
-	_dir = _dir || "/";
-	var dir = path.join(__dirname, _dir);
+filesystem.prototype.ls = function(rel_dir, callback)
+{	
+	rel_dir = path.join("/", rel_dir || "/");
+	var abs_dir = path.join(this.rootdir, rel_dir);
+	var _fs = this;
 
 	var result = new Object();
-	if (dir.indexOf(__dirname) == 0) {
-		result.dir = _dir;
-		result.entries = new Array();
+	if (abs_dir.indexOf(this.rootdir) == 0) {
+		result.dir = path.join("/", rel_dir);
+
+		var prevDir = path.join(abs_dir, "..");
+		if (prevDir.indexOf(this.rootdir) == 0){
+			result.parentdir = path.join("/", rel_dir, "..");
+		}
+
 		async.waterfall([
-			function(acallback){
-				fs.readdir(dir, function(err, files) {
+			// get directory contents
+			function(acallback) {
+				fs.readdir(abs_dir, function(err, files) {
 					acallback(err, files);
 				});
-			}
-			//,
-			//function(files, callback) {
-			//	// var stats = stat /@ files;
-			//	async.map(files,
-			//}
-			],
-			function(err, files){
-				for (i in files) {
-					result.entries[i] = new Object();
-					result.entries[i].name = files[i];
-					result.entries[i].path = path.join(_dir, files[i]);
-				}
-				var prevDir = path.join(dir, "..");
-				if (prevDir.indexOf(__dirname) == 0) {
-					result.entries.push({
-						name: "..",
-						path: path.join(_dir, "..")
+			},
+			// get contents metadata
+			function(files, acallback) {
+				async.map(files, function(file, mapcallback) {
+						_fs._get_meta_data(abs_dir, file, mapcallback);
+					}, acallback);
+			},
+			// filter out contents that aren't files or directories
+			function(files_meta, acallback) {
+				async.reject(
+					files_meta,
+					function(file_meta, reject) {
+						reject(file_meta.type === null);
+					},
+					function(ret) {
+						acallback(null, ret);
+					});
+			}],
+			function(err, filedata) {
+				if (err === null) {
+					// put metadata in result after adding the file's paths
+					result.entries = filedata;
+					for (i in result.entries) {
+						result.entries[i].path = path.join(rel_dir, result.entries[i].name);
+					}
+					// sort results - directories first
+					result.entries.sort(function(_l,_r){
+						return _fs._meta_entry_types[_l] - _fs._meta_entry_types[_r];
 					});
 				}
-				callback(result);
+				if (err !== null) {
+					result = null;
+				}
+				callback(err, result);
 			}
 		);
 	} else {
-		callback("invalid directory");
+		callback("invalid directory", null);
 	}
 }
 
-app.use(app.router);
-
-app.use("/public/js", express.static(__dirname + "/public/js"));
-app.use("/public/templates", express.static(__dirname + "/public/templates"));
-
-app.get("/dir", function(req, res){
-	async.waterfall([
-		function(callback){
-			dirlisting(req.query.path, function(ret) {
-				callback(null, ret);
-			});
-		},
-		function(dirlist, callback){
-			var stringified = JSON.stringify(dirlist);
-			res.send(stringified);
-			callback(null);
-		}
-	]);
-});
-
-app.get("/", function(req, res){
-	res.sendfile(__dirname + "/public/html/index.htm");
-});
-
-app.listen(3000);
-
-durr_butter();
 

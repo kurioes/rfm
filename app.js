@@ -1,31 +1,91 @@
-var express = require('express');
+var express = require("express");
 var app = express();
-var path = require('path');
+var path = require("path");
+var fs = require("fs");
 var async = require("async");
+var filesystem = require("./controllers/filesystem.js")(__dirname);
+
+function get_file_meta(filename, callback) {
+	fs.lstat(filename, function(err, stat) {
+		if (err === null) {
+			var ret = null;
+			if (stat.isFile() || stat.isDirectory()) {
+				ret = new Object();
+				ret.name = filename;
+
+				if (stat.isFile()) {
+					ret.type = "file";
+					ret.size = stat.size;
+				} else if (stat.isDirectory()) {
+					ret.type = "dir";
+				} else {
+					ret.type = null;
+				}
+			}
+		}
+		callback(err, ret);
+	});
+}
+
+function durr_butter() {
+	var dir = __dirname;
+	async.waterfall([
+		function(callback){ fs.readdir(dir, callback); },
+		function(files, callback){ async.map(files, get_file_meta, callback); }
+	],
+		function(err, result){
+			if (err !== null) console.log("ERROR: ", err);
+			console.log(result);
+		}
+	);
+}
 
 function dirlisting(_dir, callback)
 {
+	_dir = _dir || "/";
 	var dir = path.join(__dirname, _dir);
 
 	var result = new Object();
 	if (dir.indexOf(__dirname) == 0) {
-		result.dir = dir;
+		result.dir = _dir;
 		result.entries = new Array();
-		result.entries[0] = {name: "derp.jpg", meta: "image/jpeg"};
-		result.entries[1] = {name: "omg.txt"};
+		async.waterfall([
+			function(acallback){
+				fs.readdir(dir, function(err, files) {
+					acallback(err, files);
+				});
+			}
+			//,
+			//function(files, callback) {
+			//	// var stats = stat /@ files;
+			//	async.map(files,
+			//}
+			],
+			function(err, files){
+				for (i in files) {
+					result.entries[i] = new Object();
+					result.entries[i].name = files[i];
+					result.entries[i].path = path.join(_dir, files[i]);
+				}
+				var prevDir = path.join(dir, "..");
+				if (prevDir.indexOf(__dirname) == 0) {
+					result.entries.push({
+						name: "..",
+						path: path.join(_dir, "..")
+					});
+				}
+				callback(result);
+			}
+		);
 	} else {
-		result.error = "invalid directory";
+		callback("invalid directory");
 	}
-
-	process.nextTick(function() {
-		callback(result);
-	});
 }
 
 app.use(app.router);
 
-app.use("/js", express.static(__dirname + "/www/js"));
-app.use("/templates", express.static(__dirname + "/www/templates"));
+app.use("/public/js", express.static(__dirname + "/public/js"));
+app.use("/public/templates", express.static(__dirname + "/public/templates"));
 
 app.get("/dir", function(req, res){
 	async.waterfall([
@@ -42,10 +102,16 @@ app.get("/dir", function(req, res){
 	]);
 });
 
-//app.use('/', express.static(__dirname + '/www/html'));
-app.get('/', function(req, res){
-	res.sendfile(__dirname + '/www/html/index.htm');
+app.get("/", function(req, res){
+	res.sendfile(__dirname + "/public/html/index.htm");
+});
+
+app.get(/^\/rest\/(.*)/, function(req, res){
+	filesystem.ls(req.params[0], function(err, ret) {
+		res.send(ret);
+	});
 });
 
 app.listen(3000);
+console.log("ok");
 

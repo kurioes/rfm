@@ -1,7 +1,7 @@
 {
   "name": "RFM",
   "description": "remote file manager test app",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "private": true,
   "dependencies": {
     "express": "3.0.6",
