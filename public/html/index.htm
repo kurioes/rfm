@@ -6,22 +6,25 @@
 		<script src="/public/js/mustache.js"></script>
 		<script>
 			var browseDir = function(dir) {
-				var template = "<html><head><title</title></head><body>"+
+				var template = 
 					"<p>Dir listing for {{dir}}</p>"+
-					"<ul>{{#entries}}"+
-						"<li><a onclick='browseDir(\"{{path}}\")'>{{name}}</a></li>"+
-					"{{/entries}}</ul>"
-					"</body></html>";
-				var data = {stache: "SPARTA!"};
-				document.body.innerHTML = Mustache.to_html(template, data);
+					"<ul>"+
+					"{{#parentdir}}<li><a onclick='browseDir(\"{{parentdir}}\")'>..</a>{{/parentdir}}"+
+					"{{#entries}}"+
+						"<li><span style='color:blue'>{{type}}</span> <a onclick='"+
+							"browseDir(\"{{path}}\")"+
+						"'>{{name}}</a> <a href='/serve/{{path}}'>serve</a></li>"+
+					"{{/entries}}"+
+					"</ul>";
 
-				$.ajax("/dir?path="+dir, {
+				var url = "/list/" + dir;
+
+				$.ajax("/list/"+dir, {
 					async:		true,
 					cache:		false,
 					dataType:	"json",
 					success:	function(data, status, xhr) {
-									document.body.innerHTML = 
-										Mustache.to_html(template, data);
+									document.body.innerHTML = Mustache.to_html(template, data);
 								}
 					});					
 			};

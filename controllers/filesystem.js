@@ -50,6 +50,32 @@ filesystem.prototype._get_files_metadata = function(dir, filenames, callback) {
 	);
 }
 
+filesystem.prototype._meta_entry_cmp = function(a, b) {
+	var ret = this._meta_entry_types[a.type] - this._meta_entry_types[b.type];
+	if (ret !== 0)
+		return ret;
+	ret = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+	if (ret !== 0)
+		return ret;
+	ret = a.name.localeCompare(b.name);
+	return ret;
+}
+
+filesystem.prototype._remove_invalid_entries = function(files_metadata, callback) {
+	async.reject(
+		files_metadata,
+		function(file_metadata, reject) {
+			if (file_metadata === null) {
+				return reject(true);
+			} else {
+				return reject(file_metadata.type === null);
+			}
+		},
+		function(ret) {
+			callback(null, ret);
+		});		
+}
+
 filesystem.prototype.ls = function(rel_dir, callback)
 {	
 	rel_dir = path.join("/", rel_dir || "/");
@@ -79,16 +105,8 @@ filesystem.prototype.ls = function(rel_dir, callback)
 					}, acallback);
 			},
 			// filter out contents that aren't files or directories
-			function(files_meta, acallback) {
-				async.reject(
-					files_meta,
-					function(file_meta, reject) {
-						reject(file_meta.type === null);
-					},
-					function(ret) {
-						acallback(null, ret);
-					});
-			}],
+			_fs._remove_invalid_entries
+			],
 			function(err, filedata) {
 				if (err === null) {
 					// put metadata in result after adding the file's paths
@@ -97,8 +115,8 @@ filesystem.prototype.ls = function(rel_dir, callback)
 						result.entries[i].path = path.join(rel_dir, result.entries[i].name);
 					}
 					// sort results - directories first
-					result.entries.sort(function(_l,_r){
-						return _fs._meta_entry_types[_l] - _fs._meta_entry_types[_r];
+					result.entries.sort(function(_l,_r) {
+						return _fs._meta_entry_cmp(_l, _r);
 					});
 				}
 				if (err !== null) {
@@ -112,4 +130,18 @@ filesystem.prototype.ls = function(rel_dir, callback)
 	}
 }
 
+filesystem.prototype.serve_file = function(rel_path, req, res) {
+	var abs_path = path.join(this.rootdir, rel_path);
+	fs.exists(
+		abs_path,
+		function(exists) {
+			if (exists) {
+				res.sendfile(abs_path);
+			} else {
+				res.status(404);
+				res.send("404 File Not Found");
+			}
+		}
+	);
+}
 
