@@ -3,7 +3,7 @@ var app = express();
 //var path = require("path");
 //var fs = require("fs");
 //var async = require("async");
-var filesystem = require("./controllers/filesystem.js")(__dirname);
+var filesystem = require("./controllers/rfm_dirlist.js")(__dirname);
 
 app.use(app.router);
 
