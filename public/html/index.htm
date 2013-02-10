@@ -3,50 +3,193 @@
 	<head>
 		<title>test</title>
 		<style>
-			a:hover {
-				cursor:pointer;
+			#rfm-wrap {
+				font: 62.5% "Trebuchet MS", sans-serif;
+				margin: 30px;
+			}
+			
+			#rfm-addressbar-edit {
+				width: 100%;
+				display: block;
+				border: 1px inset #eee;
+				margin: -1px;
+				font: "Trebuchet MS", sans-serif;
+			}
+
+			#rfm-address-table td {
+				padding: 4px;
+			}
+			
+			.ui-autocomplete a {
+				font: 70% "Trebuchet MS", sans-serif;
+			}
+
+			#rfm-workpane {
+				float: right;
+				width: 80%;
+			}
+
+			#rfm-nav {
+				float: left;
+				background: #abc;
+				width: 20%;
+			}
+
+			#rfm-dirlist tr {
+				cursor: pointer;
+			}
+
+			#rfm-dirlist tr:hover {
+				background: #ccf;
+			}
+			
+			#rfm-edit-address-btn {
+				padding: 8px 3px 8px 3px;
+				//padding: 8px;
+				//padding-right: 0px;
+				text-decoration: none;
+				position: relative;
+			}
+			
+			#rfm-edit-address-btn span.ui-icon {
+				//margin: 0 0 0 0;
+				position: absolute;
+				left: 6px;
+				top: 50%;
+				margin-top: -8px; // half its size
+			}
+			
+			#rfm-address-area {
+				//position: relative;
+				height: 44px;
+			}
+			
+			#rfm-address-line-edit {
+//				width: 100%;
+			}
+			
+			#rfm-address-line-buttons {
+				width: 100%;
+				//margin-right: 30px;
+			}
+			
+			#rfm-addres-line-right {
+				//position: absolute;
+				//right: 0px;
+				//top: 0px;
+			}
+
+			.ui-button {
+				font-size: 12px;
 			}
 		</style>
-		<script src="/public/js/jquery-1.8.3.js"></script>
-		<script src="/public/js/mustache.js"></script>
+		<link href="./public/css/smoothness/jquery-ui-1.10.0.custom.css" rel="stylesheet"/>
+
+		<script src="./public/js/jquery-1.9.1.js" type="text/javascript"></script>
+		<script src="./public/js/jquery-ui-1.10.0.custom.js"></script>
+		<script src="./public/js/mustache.js" type="text/javascript"></script>
+
 		<script>
-			var template;
-			var browseDir = function(dir) {
-				/*var template = 
-					"<p>Dir listing for {{dir}}</p>"+
-					"<ul>"+
-					"{{#parentdir}}<li><a onclick='browseDir(\"{{parentdir}}\")'>..</a>{{/parentdir}}"+
-					"{{#entries}}"+
-						"<li><span style='color:blue'>{{type}}</span> <a onclick='"+
-							"browseDir(\"{{path}}\")"+
-						"'>{{name}}</a> <a href='/serve/{{path}}'>serve</a></li>"+
-					"{{/entries}}"+
-					"</ul>";
-				template =
-					"<p>Directory {{dir}}</p>"+
-					"<table width='100%' border='0' cellspacing='0'>"+
-					"{{#parentdir}}<tr><td class=\"col-type\" width=\"40\">dir</td><td class=\"col-name\" width=\"*\"><a onclick=\"browseDir('{{parentdir}}')\">..</a></td></tr>{{/parentdir}}"+
-					"{{#entries}}<tr>"+
-						"<td class=\"col-type\" width=\"40\">{{type}}</td>"+
-						"<td class=\"col-name\" width=\"*\">"+
-							"{{#size}}<a href=\"/serve{{path}}\">{{name}}</a>{{/size}}"+
-							"{{^size}}<a onclick=\"browseDir('{{path}}')\">{{name}}</a>{{/size}}"+
-						"</td></tr>{{/entries}}"+
-					"</table>";*/
-
-				var url = "/list/" + dir;
-
-				$.ajax("/list/"+dir, {
+			var template, crumbs_template;
+			var lastDir = "/";
+			var endsWith = function(ending, str) {
+				return str.length >= ending.length && str.substr(str.length - ending.length) == ending;
+			}
+			var includeTrailingDelim = function(dir) {
+				if (endsWith('/', dir)) return dir; else return dir + '/';
+			}
+			var autocompletify = function(dir, alternatives) {
+				var result = [];
+				dir = includeTrailingDelim(dir);
+				for (i in alternatives) {
+					result.push(dir + alternatives[i]);
+				}
+				return result;
+			}
+			var fixAutoComplete = function(dir) {
+				// request autocomplete entries and .autocomplete the input field
+				$.ajax("./services/dir/autocomplete" + dir, {
 					async:		true,
 					cache:		false,
 					dataType:	"json",
 					success:	function(data, status, xhr) {
-									document.body.innerHTML = Mustache.to_html(template, data);
+									var auto_data = autocompletify(dir, data);
+									$('#rfm-addressbar-edit').autocomplete({"source": auto_data});
 								}
-					});					
+					});
+			}
+			var addressEdited = function() {
+				var value = $('#rfm-addressbar-edit').val();
+				if (endsWith('/', value)) {
+					fixAutoComplete(value);
+				}
+			}
+			var enableAddressEdit = function() {
+				$('#rfm-address-line-edit').show();
+				$('#rfm-address-line-buttons').hide();
+				$('#rfm-edit-address-btn').click(disableAddressEdit);
+			}
+			var disableAddressEdit = function() {
+				$('#rfm-address-line-edit').hide();
+				$('#rfm-address-line-buttons').show();
+				$('#rfm-edit-address-btn').click(enableAddressEdit);
+			}
+			var browseDir = function(dir) {
+					$.ajax("./services/dir/list/json" + dir, {
+					async:		true,
+					cache:		false,
+					dataType:	"json",
+					success:	function(data, status, xhr) {
+									// update address edit
+									lastDir = dir;
+									fixAutoComplete(dir);
+									$('#rfm-addressbar-edit').val(includeTrailingDelim(dir));
+									
+									// crumbs
+									var dirs = (data.dir || '').split('/');
+									dirs = dirs.slice(1);
+									if (dirs[dirs.length-1] === '')
+										dirs = dirs.slice(0, dirs.length-1);
+									var cpath = '/';
+									var crumbs = [];
+									for (i in dirs) {
+										cpath = cpath + dirs[i] + '/';
+										crumbs.push({"label": dirs[i], "path": cpath});
+									}
+									data.crumbs = crumbs;
+									
+									// parent directory
+									if (data.parentdir && data.dirs) {
+										data.dirs.unshift({"path": data.parentdir, "name": ".."});
+									}
+
+									var html = Mustache.to_html(template, data);
+									$('#rfm-cont').html(html);
+									$('#rfm-address-line-buttons').html(Mustache.to_html(crumbs_template, data));
+								}
+					});
 			};
 			$(document).ready(function() {
-				$.ajax("/public/templates/dirlist.mustache.htm", {
+				$('#rfm-edit-address-btn').button().click(enableAddressEdit);
+				$('#rfm-address-line-edit').hide();
+				$('#rfm-addressbar-edit').keyup(function(event) {
+					if(event.which == 13) { // keyCode		
+						browseDir($('#rfm-addressbar-edit').val());
+						disableAddressEdit();
+					}
+					if (event.which == 27) {
+						disableAddressEdit();
+					}
+				});
+				$.ajax("./public/templates/dirlist-crumbs.mustache.htm", {
+					async:		true,
+					cache:		true,
+					dataType:	"html",
+					success:	function(data, status, xhr) {
+									crumbs_template = data;
+								}
+					});
+				$.ajax("./public/templates/dirlist.mustache.htm", {
 					async:		true,
 					cache:		true,
 					dataType:	"html",
@@ -59,5 +202,21 @@
 		</script>
 	</head>
 	<body>
+		<div id="rfm-wrap">
+			<div id="rfm-nav"><p>Dir tree</p></div>
+			<div id="rfm-workpane">
+				<div id="rfm-address-area">
+					<table id="rfm-address-table" width="100%"><tr><td>
+					<span id="rfm-address-line-edit"><input id="rfm-addressbar-edit" oninput="addressEdited()"/></span>
+					<span id="rfm-address-line-buttons"></span>
+					</td><td width="32">
+					<span id="rfm-addres-line-right">
+						<a href="#" id="rfm-edit-address-btn" class="ui-state-default ui-corner-all"><span class="ui-icon ui-icon-pencil"></span></a>
+					</span>
+					</td></tr></table>
+				</div>
+				<div id="rfm-cont"></div>
+			</div>
+		</div>
 	</body>
 </html>

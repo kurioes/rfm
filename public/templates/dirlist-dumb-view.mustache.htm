@@ -1,0 +1,18 @@
+<p>Directory {{dir}}</p>
+<table width="100%" border="0" cellspacing="0">
+{{#parentdir}}<tr><td class="col-type" width="40">dir</td><td class="col-name" width="*"><a href="/services/dir/list/html'{{parentdir}}'">..</a></td></tr>{{/parentdir}}
+{{#dirs}}
+<tr>
+	<td class="col-type" width="40">dir</dt>
+	<td class="col-name" width="*"><a href="/services/dir/list/html{{path}}">{{name}}</a></dt>
+	<td class="col-size" width="40"></dt>
+</tr>
+{{/dirs}}
+{{#files}}
+<tr>
+	<td class="col-type" width="40">file</dt>
+	<td class="col-name" width="*"><a href="/serve{{path}}">{{name}}</a></dt>
+	<td class="col-size" width="40">{{size}}</dt>
+</tr>
+{{/files}}
+</table>
